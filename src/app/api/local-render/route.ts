@@ -111,7 +111,7 @@ export const POST = async (req: Request) => {
       webpackOverride,
       outDir: path.join(process.cwd(), ".next", "remotion-bundle"),
       publicDir: path.join(process.cwd(), "public"),
-      enableCaching: true,
+      enableCaching: false,
       ignoreRegisterRootWarning: false,
       onProgress: () => undefined,
     });

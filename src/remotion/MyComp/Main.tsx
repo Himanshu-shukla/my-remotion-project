@@ -5,6 +5,7 @@ import {
   Easing,
   interpolate,
   OffthreadVideo,
+  staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
@@ -25,8 +26,8 @@ loadFont("normal", {
 type CaptionTimelineEntry = z.infer<typeof CaptionTimeline>[number];
 
 const templateToTimeline = (
-  captionTemplateId: string;
-  captionText: string;
+  captionTemplateId: string,
+  captionText: string,
 ): z.infer<typeof CaptionTimeline> => {
   const template =
     captionTemplates.find((item) => item.id === captionTemplateId) ??
@@ -78,9 +79,13 @@ const horizontalPosition = (align: CaptionTimelineEntry["align"]) => {
 
 const TimedCaptionOverlay: React.FC<{
   captionTimeline: z.infer<typeof CaptionTimeline>;
-}> = ({ captionTimeline }) => {
+  captionTemplateId: string;
+}> = ({ captionTimeline, captionTemplateId }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const template =
+    captionTemplates.find((item) => item.id === captionTemplateId) ??
+    defaultCaptionTemplate;
   const currentMs = (frame / fps) * 1000;
   const activeCaption = captionTimeline.find(
     (item) => currentMs >= item.startMs && currentMs < item.endMs,
@@ -109,6 +114,14 @@ const TimedCaptionOverlay: React.FC<{
   });
   const align = activeCaption.align ?? "center";
   const withBackground = activeCaption.background ?? false;
+  const defaultFontSize = Math.min(
+    96,
+    Math.max(72, 92 - activeCaption.lines.length * 6),
+  );
+  const highlightedFontSize = Math.min(
+    112,
+    Math.max(92, 108 - activeCaption.lines.length * 6),
+  );
 
   return (
     <AbsoluteFill
@@ -127,30 +140,38 @@ const TimedCaptionOverlay: React.FC<{
             ? "linear-gradient(180deg, rgba(4, 8, 18, 0.08), rgba(4, 8, 18, 0.62))"
             : "transparent",
           textAlign: align,
-          textTransform: activeCaption.textTransform ?? "none",
+          textTransform: activeCaption.textTransform ?? "uppercase",
           WebkitTextStroke: "1px rgba(0, 0, 0, 0.22)",
           opacity,
           transform: `scale(${scale})`,
         }}
       >
-        {activeCaption.lines.map((line, index) => (
-          <div
-            key={`${line.text}-${index}`}
-            style={{
-              color: line.color ?? "#ffffff",
-              fontFamily,
-              fontSize: line.fontSize ?? 84,
-              fontWeight: line.fontWeight ?? 900,
-              lineHeight: 0.98,
-              letterSpacing: 0,
-              overflowWrap: "break-word",
-              textShadow:
-                "0 6px 0 rgba(0, 0, 0, 0.35), 0 16px 36px rgba(0, 0, 0, 0.68)",
-            }}
-          >
-            {line.text}
-          </div>
-        ))}
+        {activeCaption.lines.map((line, index) => {
+          const isHighlighted = index === template.highlightLineIndex;
+
+          return (
+            <div
+              key={`${line.text}-${index}`}
+              style={{
+                color:
+                  line.color ??
+                  (isHighlighted ? template.accentColor : "#ffffff"),
+                fontFamily,
+                fontSize:
+                  line.fontSize ??
+                  (isHighlighted ? highlightedFontSize : defaultFontSize),
+                fontWeight: line.fontWeight ?? 900,
+                lineHeight: 0.98,
+                letterSpacing: 0,
+                overflowWrap: "break-word",
+                textShadow:
+                  "0 6px 0 rgba(0, 0, 0, 0.35), 0 16px 36px rgba(0, 0, 0, 0.68)",
+              }}
+            >
+              {line.text}
+            </div>
+          );
+        })}
       </div>
     </AbsoluteFill>
   );
@@ -166,12 +187,15 @@ export const Main = ({
     captionTimeline.length > 0
       ? captionTimeline
       : templateToTimeline(captionTemplateId, captionText);
+  const resolvedVideoSrc = videoSrc.startsWith("/")
+    ? staticFile(videoSrc.replace(/^\//, ""))
+    : videoSrc;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#08080f" }}>
       {videoSrc ? (
         <OffthreadVideo
-          src={videoSrc}
+          src={resolvedVideoSrc}
           style={{
             width: "100%",
             height: "100%",
@@ -187,22 +211,27 @@ export const Main = ({
               "radial-gradient(circle at center, #232336 0%, #08080f 62%)",
           }}
         >
-          <div
-            style={{
-              fontFamily,
-              color: "#ffffff",
-              fontSize: 46,
-              fontWeight: 700,
-              textAlign: "center",
-              maxWidth: 720,
-              lineHeight: 1.15,
-            }}
-          >
-            Upload a video and apply a caption template
-          </div>
+          {resolvedTimeline.length === 0 ? (
+            <div
+              style={{
+                fontFamily,
+                color: "#ffffff",
+                fontSize: 46,
+                fontWeight: 700,
+                textAlign: "center",
+                maxWidth: 720,
+                lineHeight: 1.15,
+              }}
+            >
+              Upload a video and apply a caption template
+            </div>
+          ) : null}
         </AbsoluteFill>
       )}
-      <TimedCaptionOverlay captionTimeline={resolvedTimeline} />
+      <TimedCaptionOverlay
+        captionTimeline={resolvedTimeline}
+        captionTemplateId={captionTemplateId}
+      />
     </AbsoluteFill>
   );
 };

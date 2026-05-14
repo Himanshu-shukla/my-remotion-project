@@ -6,7 +6,9 @@ import type React from "react";
 import { useCallback, useMemo, useState } from "react";
 import { z } from "zod";
 import {
+  CaptionTimeline,
   captionTemplates,
+  defaultCaptionTimeline,
   CompositionProps,
   defaultMyCompProps,
   DURATION_IN_FRAMES,
@@ -19,6 +21,50 @@ import { RenderControls } from "../components/RenderControls";
 import { Spacing } from "../components/Spacing";
 import { uploadVideo } from "../lambda/api";
 import { Main } from "../remotion/MyComp/Main";
+
+const formatCaptionTimelineJson = (
+  timeline: z.infer<typeof CaptionTimeline>,
+) => JSON.stringify(timeline, null, 2);
+
+const templateToCaptionTimeline = (
+  template: (typeof captionTemplates)[number],
+): z.infer<typeof CaptionTimeline> => [
+  {
+    startMs: 0,
+    endMs: Math.round((DURATION_IN_FRAMES / VIDEO_FPS) * 1000),
+    position: "center",
+    background: true,
+    textTransform: "uppercase",
+    lines: template.lines.map((line, index) => ({
+      text: line,
+      color:
+        index === template.highlightLineIndex ? template.accentColor : "#fff",
+      fontSize: index === template.highlightLineIndex ? 92 : 82,
+    })),
+  },
+];
+
+const applyTemplateStyleToTimeline = (
+  timeline: z.infer<typeof CaptionTimeline>,
+  template: (typeof captionTemplates)[number],
+): z.infer<typeof CaptionTimeline> => {
+  return timeline.map((caption) => ({
+    ...caption,
+    background: caption.background ?? true,
+    textTransform: caption.textTransform ?? "uppercase",
+    lines: caption.lines.map((line, index) => ({
+      ...line,
+      color:
+        index === template.highlightLineIndex ? template.accentColor : "#fff",
+      fontSize:
+        line.fontSize ??
+        (index === template.highlightLineIndex
+          ? Math.min(112, Math.max(92, 104 - caption.lines.length * 6))
+          : Math.min(96, Math.max(72, 88 - caption.lines.length * 6))),
+      fontWeight: line.fontWeight ?? 900,
+    })),
+  }));
+};
 
 type UploadState =
   | {
@@ -94,8 +140,9 @@ const Home: NextPage = () => {
   const [appliedTemplateId, setAppliedTemplateId] = useState(
     defaultMyCompProps.captionTemplateId,
   );
-  const [captionText, setCaptionText] = useState(
-    defaultMyCompProps.captionText,
+  const captionText = defaultMyCompProps.captionText;
+  const [captionTimelineJson, setCaptionTimelineJson] = useState(
+    formatCaptionTimelineJson(defaultCaptionTimeline),
   );
   const [uploadState, setUploadState] = useState<UploadState>({
     status: "idle",
@@ -108,13 +155,38 @@ const Home: NextPage = () => {
     );
   }, [selectedTemplateId]);
 
+  const parsedCaptionTimeline = useMemo(() => {
+    try {
+      const json = JSON.parse(captionTimelineJson) as unknown;
+      return CaptionTimeline.safeParse(json);
+    } catch (err) {
+      return {
+        success: false,
+        error: {
+          issues: [
+            {
+              message: (err as Error).message,
+            },
+          ],
+        },
+      } as const;
+    }
+  }, [captionTimelineJson]);
+
+  const captionJsonError = parsedCaptionTimeline.success
+    ? null
+    : parsedCaptionTimeline.error.issues[0]?.message ?? "Invalid JSON";
+
   const inputProps: z.infer<typeof CompositionProps> = useMemo(() => {
     return {
       videoSrc,
       captionTemplateId: appliedTemplateId,
       captionText,
+      captionTimeline: parsedCaptionTimeline.success
+        ? parsedCaptionTimeline.data
+        : [],
     };
-  }, [appliedTemplateId, captionText, videoSrc]);
+  }, [appliedTemplateId, captionText, parsedCaptionTimeline, videoSrc]);
 
   const onVideoChange: React.ChangeEventHandler<HTMLInputElement> = useCallback(
     async (event) => {
@@ -150,10 +222,30 @@ const Home: NextPage = () => {
 
   const onApplyTemplate = useCallback(() => {
     setAppliedTemplateId(selectedTemplate.id);
-    setCaptionText(selectedTemplate.lines.join("\n"));
-  }, [selectedTemplate]);
+    if (parsedCaptionTimeline.success) {
+      setCaptionTimelineJson(
+        formatCaptionTimelineJson(
+          applyTemplateStyleToTimeline(
+            parsedCaptionTimeline.data,
+            selectedTemplate,
+          ),
+        ),
+      );
+      return;
+    }
 
-  const renderDisabled = !videoSrc || uploadState.status === "uploading";
+    setCaptionTimelineJson(
+      formatCaptionTimelineJson(templateToCaptionTimeline(selectedTemplate)),
+    );
+  }, [parsedCaptionTimeline, selectedTemplate]);
+
+  const renderDisabled =
+    !videoSrc || uploadState.status === "uploading" || Boolean(captionJsonError);
+  const renderDisabledReason = captionJsonError
+    ? "Fix the caption JSON before rendering."
+    : uploadState.status === "uploading"
+      ? "Wait for the upload to finish before rendering."
+      : "Upload a video before rendering.";
 
   return (
     <div>
@@ -231,14 +323,27 @@ const Home: NextPage = () => {
           </div>
         </div>
         <Spacing></Spacing>
+        <div className="rounded-geist border border-unfocused-border-color bg-background p-geist">
+          <div className="font-geist text-sm font-medium text-foreground">
+            Caption JSON
+          </div>
+          <textarea
+            value={captionTimelineJson}
+            onChange={(event) => setCaptionTimelineJson(event.target.value)}
+            spellCheck={false}
+            className="mt-geist-half min-h-80 w-full resize-y rounded-geist border border-unfocused-border-color bg-background p-geist-half font-mono text-sm leading-relaxed text-foreground outline-none transition-colors focus:border-focused-border-color"
+          />
+          {captionJsonError ? (
+            <div className="pt-geist-half text-sm text-geist-error">
+              {captionJsonError}
+            </div>
+          ) : null}
+        </div>
+        <Spacing></Spacing>
         <RenderControls
           inputProps={inputProps}
           disabled={renderDisabled}
-          disabledReason={
-            uploadState.status === "uploading"
-              ? "Wait for the upload to finish before rendering."
-              : "Upload a video before rendering."
-          }
+          disabledReason={renderDisabledReason}
         ></RenderControls>
       </div>
     </div>
