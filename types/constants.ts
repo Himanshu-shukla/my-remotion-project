@@ -56,6 +56,62 @@ export type CaptionTemplateId = (typeof captionTemplates)[number]["id"];
 
 export const defaultCaptionTemplate = captionTemplates[0];
 
+export const videoFrameOptions = [
+  {
+    id: "instagram-reel",
+    label: "Instagram Reel",
+    dimensions: "1080 x 1920",
+    width: 1080,
+    height: 1920,
+    aspectRatio: "9:16",
+  },
+  {
+    id: "youtube-full-hd",
+    label: "YouTube Full HD",
+    dimensions: "1920 x 1080",
+    width: 1920,
+    height: 1080,
+    aspectRatio: "16:9",
+  },
+  {
+    id: "instagram-square",
+    label: "Instagram Square",
+    dimensions: "1080 x 1080",
+    width: 1080,
+    height: 1080,
+    aspectRatio: "1:1",
+  },
+  {
+    id: "instagram-portrait",
+    label: "Instagram Portrait",
+    dimensions: "1080 x 1350",
+    width: 1080,
+    height: 1350,
+    aspectRatio: "4:5",
+  },
+  {
+    id: "facebook-landscape",
+    label: "Facebook Landscape",
+    dimensions: "1280 x 720",
+    width: 1280,
+    height: 720,
+    aspectRatio: "16:9",
+  },
+] as const;
+
+export const defaultVideoFrameOption = videoFrameOptions[0];
+
+export type VideoFrameOptionId = (typeof videoFrameOptions)[number]["id"];
+
+export const getVideoFrameOption = (
+  id: string | undefined,
+): (typeof videoFrameOptions)[number] => {
+  return (
+    videoFrameOptions.find((option) => option.id === id) ??
+    defaultVideoFrameOption
+  );
+};
+
 export const CaptionTimelineLine = z.object({
   text: z.string(),
   color: z.string().optional(),
@@ -85,6 +141,15 @@ export const CompositionProps = z.object({
   captionTemplateId: z.string(),
   captionText: z.string(),
   captionTimeline: CaptionTimeline.optional(),
+  videoFrameId: z
+    .enum([
+      "instagram-reel",
+      "youtube-full-hd",
+      "instagram-square",
+      "instagram-portrait",
+      "facebook-landscape",
+    ])
+    .default(defaultVideoFrameOption.id),
 });
 
 export const defaultCaptionTimeline: z.infer<typeof CaptionTimeline> = [
@@ -154,9 +219,10 @@ export const defaultMyCompProps: z.infer<typeof CompositionProps> = {
   captionTemplateId: defaultCaptionTemplate.id,
   captionText: defaultCaptionTemplate.lines.join("\n"),
   captionTimeline: defaultCaptionTimeline,
+  videoFrameId: defaultVideoFrameOption.id,
 };
 
 export const DURATION_IN_FRAMES = 200;
-export const VIDEO_WIDTH = 1280;
-export const VIDEO_HEIGHT = 720;
+export const VIDEO_WIDTH = defaultVideoFrameOption.width;
+export const VIDEO_HEIGHT = defaultVideoFrameOption.height;
 export const VIDEO_FPS = 30;

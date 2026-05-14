@@ -12,9 +12,9 @@ import {
   CompositionProps,
   defaultMyCompProps,
   DURATION_IN_FRAMES,
+  getVideoFrameOption,
+  videoFrameOptions,
   VIDEO_FPS,
-  VIDEO_HEIGHT,
-  VIDEO_WIDTH,
 } from "../../types/constants";
 import { Button } from "../components/Button";
 import { RenderControls } from "../components/RenderControls";
@@ -132,8 +132,36 @@ const TemplateCard: React.FC<{
   );
 };
 
+const FrameOptionCard: React.FC<{
+  option: (typeof videoFrameOptions)[number];
+  selected: boolean;
+  onSelect: () => void;
+}> = ({ option, selected, onSelect }) => {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={[
+        "rounded-geist border p-geist-half text-left transition-colors",
+        "bg-[#090912] hover:border-focused-border-color",
+        selected ? "border-focused-border-color" : "border-unfocused-border-color",
+      ].join(" ")}
+    >
+      <div className="font-geist text-sm font-semibold text-foreground">
+        {option.label}
+      </div>
+      <div className="pt-1 font-geist text-xs text-subtitle">
+        {option.dimensions} - {option.aspectRatio}
+      </div>
+    </button>
+  );
+};
+
 const Home: NextPage = () => {
   const [videoSrc, setVideoSrc] = useState(defaultMyCompProps.videoSrc);
+  const [selectedVideoFrameId, setSelectedVideoFrameId] = useState(
+    defaultMyCompProps.videoFrameId,
+  );
   const [selectedTemplateId, setSelectedTemplateId] = useState(
     defaultMyCompProps.captionTemplateId,
   );
@@ -154,6 +182,10 @@ const Home: NextPage = () => {
       captionTemplates[0]
     );
   }, [selectedTemplateId]);
+
+  const selectedVideoFrame = useMemo(() => {
+    return getVideoFrameOption(selectedVideoFrameId);
+  }, [selectedVideoFrameId]);
 
   const parsedCaptionTimeline = useMemo(() => {
     try {
@@ -185,8 +217,15 @@ const Home: NextPage = () => {
       captionTimeline: parsedCaptionTimeline.success
         ? parsedCaptionTimeline.data
         : [],
+      videoFrameId: selectedVideoFrame.id,
     };
-  }, [appliedTemplateId, captionText, parsedCaptionTimeline, videoSrc]);
+  }, [
+    appliedTemplateId,
+    captionText,
+    parsedCaptionTimeline,
+    selectedVideoFrame.id,
+    videoSrc,
+  ]);
 
   const onVideoChange: React.ChangeEventHandler<HTMLInputElement> = useCallback(
     async (event) => {
@@ -250,18 +289,21 @@ const Home: NextPage = () => {
   return (
     <div>
       <div className="max-w-screen-lg m-auto mb-5 px-4">
-        <div className="overflow-hidden rounded-geist shadow-[0_0_200px_rgba(0,0,0,0.15)] mb-10 mt-16">
+        <div className="mb-10 mt-16 flex justify-center overflow-hidden rounded-geist shadow-[0_0_200px_rgba(0,0,0,0.15)]">
           <Player
             component={Main}
             inputProps={inputProps}
             durationInFrames={DURATION_IN_FRAMES}
             fps={VIDEO_FPS}
-            compositionHeight={VIDEO_HEIGHT}
-            compositionWidth={VIDEO_WIDTH}
+            compositionHeight={selectedVideoFrame.height}
+            compositionWidth={selectedVideoFrame.width}
             style={{
               // Can't use tailwind class for width since player's default styles take presedence over tailwind's,
               // but not over inline styles
-              width: "100%",
+              width:
+                selectedVideoFrame.width < selectedVideoFrame.height
+                  ? "min(100%, 430px)"
+                  : "100%",
             }}
             controls
             autoPlay
@@ -270,30 +312,49 @@ const Home: NextPage = () => {
           />
         </div>
         <div className="grid gap-geist lg:grid-cols-[280px_1fr]">
-          <div className="rounded-geist border border-unfocused-border-color bg-background p-geist">
-            <label className="block font-geist text-sm font-medium text-foreground">
-              Video file
-            </label>
-            <input
-              type="file"
-              accept="video/mp4,video/quicktime,video/webm"
-              onChange={onVideoChange}
-              disabled={uploadState.status === "uploading"}
-              className="mt-geist-half block w-full text-sm text-foreground file:mr-geist-half file:h-10 file:rounded-geist file:border file:border-unfocused-border-color file:bg-background file:px-geist-half file:font-geist file:text-sm file:font-medium file:text-foreground hover:file:border-focused-border-color"
-            />
-            <div className="pt-geist-half text-sm text-subtitle">
-              {uploadState.status === "idle" ? "No video uploaded" : null}
-              {uploadState.status === "uploading"
-                ? `Uploading ${uploadState.filename}`
-                : null}
-              {uploadState.status === "done"
-                ? uploadState.storageMode === "local"
-                  ? `${uploadState.filename} ready locally`
-                  : `${uploadState.filename} ready until ${new Date(
-                      uploadState.expiresAt,
-                    ).toLocaleString()}`
-                : null}
-              {uploadState.status === "error" ? uploadState.message : null}
+          <div className="flex flex-col gap-geist">
+            <div className="rounded-geist border border-unfocused-border-color bg-background p-geist">
+              <label className="block font-geist text-sm font-medium text-foreground">
+                Video file
+              </label>
+              <input
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm"
+                onChange={onVideoChange}
+                disabled={uploadState.status === "uploading"}
+                className="mt-geist-half block w-full text-sm text-foreground file:mr-geist-half file:h-10 file:rounded-geist file:border file:border-unfocused-border-color file:bg-background file:px-geist-half file:font-geist file:text-sm file:font-medium file:text-foreground hover:file:border-focused-border-color"
+              />
+              <div className="pt-geist-half text-sm text-subtitle">
+                {uploadState.status === "idle" ? "No video uploaded" : null}
+                {uploadState.status === "uploading"
+                  ? `Uploading ${uploadState.filename}`
+                  : null}
+                {uploadState.status === "done"
+                  ? uploadState.storageMode === "local"
+                    ? `${uploadState.filename} ready locally`
+                    : `${uploadState.filename} ready until ${new Date(
+                        uploadState.expiresAt,
+                      ).toLocaleString()}`
+                  : null}
+                {uploadState.status === "error" ? uploadState.message : null}
+              </div>
+            </div>
+
+            <div className="rounded-geist border border-unfocused-border-color bg-background p-geist">
+              <div className="font-geist text-sm font-medium text-foreground">
+                Frame size
+              </div>
+              <Spacing></Spacing>
+              <div className="grid gap-geist-half">
+                {videoFrameOptions.map((option) => (
+                  <FrameOptionCard
+                    key={option.id}
+                    option={option}
+                    selected={option.id === selectedVideoFrame.id}
+                    onSelect={() => setSelectedVideoFrameId(option.id)}
+                  />
+                ))}
+              </div>
             </div>
           </div>
 

@@ -1,14 +1,29 @@
-import { Composition } from "remotion";
+import { CalculateMetadataFunction, Composition } from "remotion";
 import {
   COMP_NAME,
   defaultMyCompProps,
   DURATION_IN_FRAMES,
+  getVideoFrameOption,
+  CompositionProps,
   VIDEO_FPS,
   VIDEO_HEIGHT,
   VIDEO_WIDTH,
 } from "../../types/constants";
 import { Main } from "./MyComp/Main";
 import { NextLogo } from "./MyComp/NextLogo";
+import { z } from "zod";
+
+const calculateMyCompMetadata: CalculateMetadataFunction<
+  z.infer<typeof CompositionProps>
+> = ({ props }) => {
+  const frameOption = getVideoFrameOption(props.videoFrameId);
+
+  return {
+    width: frameOption.width,
+    height: frameOption.height,
+    props,
+  };
+};
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -21,6 +36,7 @@ export const RemotionRoot: React.FC = () => {
         width={VIDEO_WIDTH}
         height={VIDEO_HEIGHT}
         defaultProps={defaultMyCompProps}
+        calculateMetadata={calculateMyCompMetadata}
       />
       <Composition
         id="NextLogo"
