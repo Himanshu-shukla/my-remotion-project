@@ -11,7 +11,6 @@ import {
   defaultCaptionTimeline,
   CompositionProps,
   defaultMyCompProps,
-  DURATION_IN_FRAMES,
   getVideoFrameOption,
   videoFrameOptions,
   VIDEO_FPS,
@@ -26,12 +25,37 @@ const formatCaptionTimelineJson = (
   timeline: z.infer<typeof CaptionTimeline>,
 ) => JSON.stringify(timeline, null, 2);
 
+const getVideoDurationInSeconds = async (file: File): Promise<number> => {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    return await new Promise<number>((resolve, reject) => {
+      const video = document.createElement("video");
+
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        if (Number.isFinite(video.duration) && video.duration > 0) {
+          resolve(video.duration);
+          return;
+        }
+
+        reject(new Error("Could not read the video duration."));
+      };
+      video.onerror = () => reject(new Error("Could not read the video file."));
+      video.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
 const templateToCaptionTimeline = (
   template: (typeof captionTemplates)[number],
+  videoDurationInSeconds: number,
 ): z.infer<typeof CaptionTimeline> => [
   {
     startMs: 0,
-    endMs: Math.round((DURATION_IN_FRAMES / VIDEO_FPS) * 1000),
+    endMs: Math.round(videoDurationInSeconds * 1000),
     position: "center",
     background: true,
     textTransform: "uppercase",
@@ -159,6 +183,9 @@ const FrameOptionCard: React.FC<{
 
 const Home: NextPage = () => {
   const [videoSrc, setVideoSrc] = useState(defaultMyCompProps.videoSrc);
+  const [videoDurationInSeconds, setVideoDurationInSeconds] = useState(
+    defaultMyCompProps.videoDurationInSeconds,
+  );
   const [selectedVideoFrameId, setSelectedVideoFrameId] = useState(
     defaultMyCompProps.videoFrameId,
   );
@@ -186,6 +213,10 @@ const Home: NextPage = () => {
   const selectedVideoFrame = useMemo(() => {
     return getVideoFrameOption(selectedVideoFrameId);
   }, [selectedVideoFrameId]);
+
+  const selectedDurationInFrames = useMemo(() => {
+    return Math.max(1, Math.ceil(videoDurationInSeconds * VIDEO_FPS));
+  }, [videoDurationInSeconds]);
 
   const parsedCaptionTimeline = useMemo(() => {
     try {
@@ -217,6 +248,7 @@ const Home: NextPage = () => {
       captionTimeline: parsedCaptionTimeline.success
         ? parsedCaptionTimeline.data
         : [],
+      videoDurationInSeconds,
       videoFrameId: selectedVideoFrame.id,
     };
   }, [
@@ -224,6 +256,7 @@ const Home: NextPage = () => {
     captionText,
     parsedCaptionTimeline,
     selectedVideoFrame.id,
+    videoDurationInSeconds,
     videoSrc,
   ]);
 
@@ -241,8 +274,12 @@ const Home: NextPage = () => {
       });
 
       try {
-        const result = await uploadVideo(file);
+        const [result, durationInSeconds] = await Promise.all([
+          uploadVideo(file),
+          getVideoDurationInSeconds(file),
+        ]);
         setVideoSrc(result.videoSrc);
+        setVideoDurationInSeconds(durationInSeconds);
         setUploadState({
           status: "done",
           filename: file.name,
@@ -274,9 +311,11 @@ const Home: NextPage = () => {
     }
 
     setCaptionTimelineJson(
-      formatCaptionTimelineJson(templateToCaptionTimeline(selectedTemplate)),
+      formatCaptionTimelineJson(
+        templateToCaptionTimeline(selectedTemplate, videoDurationInSeconds),
+      ),
     );
-  }, [parsedCaptionTimeline, selectedTemplate]);
+  }, [parsedCaptionTimeline, selectedTemplate, videoDurationInSeconds]);
 
   const renderDisabled =
     !videoSrc || uploadState.status === "uploading" || Boolean(captionJsonError);
@@ -293,7 +332,7 @@ const Home: NextPage = () => {
           <Player
             component={Main}
             inputProps={inputProps}
-            durationInFrames={DURATION_IN_FRAMES}
+            durationInFrames={selectedDurationInFrames}
             fps={VIDEO_FPS}
             compositionHeight={selectedVideoFrame.height}
             compositionWidth={selectedVideoFrame.width}

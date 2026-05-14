@@ -136,11 +136,18 @@ export const CaptionTimelineItem = z
 
 export const CaptionTimeline = z.array(CaptionTimelineItem);
 
+export const DURATION_IN_FRAMES = 200;
+export const VIDEO_FPS = 30;
+
 export const CompositionProps = z.object({
   videoSrc: z.string(),
   captionTemplateId: z.string(),
   captionText: z.string(),
   captionTimeline: CaptionTimeline.optional(),
+  videoDurationInSeconds: z
+    .number()
+    .positive()
+    .default(DURATION_IN_FRAMES / VIDEO_FPS),
   videoFrameId: z
     .enum([
       "instagram-reel",
@@ -219,10 +226,9 @@ export const defaultMyCompProps: z.infer<typeof CompositionProps> = {
   captionTemplateId: defaultCaptionTemplate.id,
   captionText: defaultCaptionTemplate.lines.join("\n"),
   captionTimeline: defaultCaptionTimeline,
+  videoDurationInSeconds: DURATION_IN_FRAMES / VIDEO_FPS,
   videoFrameId: defaultVideoFrameOption.id,
 };
 
-export const DURATION_IN_FRAMES = 200;
 export const VIDEO_WIDTH = defaultVideoFrameOption.width;
 export const VIDEO_HEIGHT = defaultVideoFrameOption.height;
-export const VIDEO_FPS = 30;

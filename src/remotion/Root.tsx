@@ -17,8 +17,13 @@ const calculateMyCompMetadata: CalculateMetadataFunction<
   z.infer<typeof CompositionProps>
 > = ({ props }) => {
   const frameOption = getVideoFrameOption(props.videoFrameId);
+  const durationInFrames = Math.max(
+    1,
+    Math.ceil(props.videoDurationInSeconds * VIDEO_FPS),
+  );
 
   return {
+    durationInFrames,
     width: frameOption.width,
     height: frameOption.height,
     props,
