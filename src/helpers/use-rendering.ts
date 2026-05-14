@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { z } from "zod";
 import { CompositionProps } from "../../types/constants";
-import { getProgress, renderVideo } from "../lambda/api";
+import { getProgress, renderLocalVideo, renderVideo } from "../lambda/api";
 
 export type State =
   | {
@@ -48,6 +48,16 @@ export const useRendering = (
       status: "invoking",
     });
     try {
+      if (inputProps.videoSrc.startsWith("/uploads/")) {
+        const result = await renderLocalVideo({ id, inputProps });
+        setState({
+          size: result.size,
+          url: result.url,
+          status: "done",
+        });
+        return;
+      }
+
       const { renderId, bucketName } = await renderVideo({ id, inputProps });
       setState({
         status: "rendering",

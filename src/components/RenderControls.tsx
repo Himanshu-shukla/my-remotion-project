@@ -6,38 +6,37 @@ import { Button } from "./Button";
 import { InputContainer } from "./Container";
 import { DownloadButton } from "./DownloadButton";
 import { ErrorComp } from "./Error";
-import { Input } from "./Input";
 import { ProgressBar } from "./ProgressBar";
 import { Spacing } from "./Spacing";
 
 export const RenderControls: React.FC<{
-  text: string;
-  setText: React.Dispatch<React.SetStateAction<string>>;
   inputProps: z.infer<typeof CompositionProps>;
-}> = ({ text, setText, inputProps }) => {
+  disabled?: boolean;
+  disabledReason?: string;
+}> = ({ inputProps, disabled, disabledReason }) => {
   const { renderMedia, state, undo } = useRendering(COMP_NAME, inputProps);
+  const isInvoking = state.status === "invoking";
 
   return (
     <InputContainer>
       {state.status === "init" ||
-      state.status === "invoking" ||
+      isInvoking ||
       state.status === "error" ? (
         <>
-          <Input
-            disabled={state.status === "invoking"}
-            setText={setText}
-            text={text}
-          ></Input>
-          <Spacing></Spacing>
           <AlignEnd>
             <Button
-              disabled={state.status === "invoking"}
-              loading={state.status === "invoking"}
+              disabled={isInvoking || disabled}
+              loading={isInvoking}
               onClick={renderMedia}
             >
               Render video
             </Button>
           </AlignEnd>
+          {disabled && disabledReason ? (
+            <div className="text-subtitle text-sm pt-geist-half">
+              {disabledReason}
+            </div>
+          ) : null}
           {state.status === "error" ? (
             <ErrorComp message={state.error.message}></ErrorComp>
           ) : null}

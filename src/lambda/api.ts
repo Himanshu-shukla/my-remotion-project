@@ -27,6 +27,23 @@ const makeRequest = async <Res>(
   return json.data;
 };
 
+const parseApiResponse = async <Res>(result: Response) => {
+  const text = await result.text();
+  let json: ApiResponse<Res>;
+
+  try {
+    json = JSON.parse(text) as ApiResponse<Res>;
+  } catch {
+    throw new Error(text || `Request failed with status ${result.status}`);
+  }
+
+  if (json.type === "error") {
+    throw new Error(json.message);
+  }
+
+  return json.data;
+};
+
 export const renderVideo = async ({
   id,
   inputProps,
@@ -55,4 +72,43 @@ export const getProgress = async ({
   };
 
   return makeRequest<ProgressResponse>("/api/lambda/progress", body);
+};
+
+export type UploadVideoResponse = {
+  videoSrc: string;
+  key: string;
+  expiresAt: string;
+  storageMode: "local" | "s3";
+};
+
+export const uploadVideo = async (file: File) => {
+  const result = await fetch("/api/upload-video", {
+    method: "post",
+    body: file,
+    headers: {
+      "content-type": file.type,
+      "x-file-name": encodeURIComponent(file.name),
+    },
+  });
+  return parseApiResponse<UploadVideoResponse>(result);
+};
+
+export type LocalRenderResponse = {
+  url: string;
+  size: number;
+};
+
+export const renderLocalVideo = async ({
+  id,
+  inputProps,
+}: {
+  id: string;
+  inputProps: z.infer<typeof CompositionProps>;
+}) => {
+  const body: z.infer<typeof RenderRequest> = {
+    id,
+    inputProps,
+  };
+
+  return makeRequest<LocalRenderResponse>("/api/local-render", body);
 };
