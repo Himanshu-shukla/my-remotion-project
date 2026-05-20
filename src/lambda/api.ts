@@ -1,12 +1,14 @@
 import type { RenderMediaOnLambdaOutput } from "@remotion/lambda/client";
 import { z } from "zod";
-import { CompositionProps } from "../../types/constants";
+import { CaptionTimeline, CompositionProps } from "../../types/constants";
 import {
   ProgressRequest,
   ProgressResponse,
   RenderRequest,
 } from "../../types/schema";
 import { ApiResponse } from "../helpers/api-response";
+import type { VideoAnalysis } from "../../packages/shared/types";
+import type { ReelTemplate } from "../../packages/template-engine/template-schema";
 
 const makeRequest = async <Res>(
   endpoint: string,
@@ -91,6 +93,48 @@ export const uploadVideo = async (file: File) => {
     },
   });
   return parseApiResponse<UploadVideoResponse>(result);
+};
+
+export type AnalyzeVideoResponse = {
+  analysis: VideoAnalysis;
+  template: ReelTemplate;
+  templatePath: string;
+};
+
+export const analyzeVideo = async ({
+  key,
+  templateName,
+  templateHint,
+}: {
+  key: string;
+  templateName?: string;
+  templateHint?: string;
+}) => {
+  return makeRequest<AnalyzeVideoResponse>("/api/analyze-video", {
+    key,
+    templateName,
+    templateHint,
+  });
+};
+
+export type GenerateReelResponse = {
+  captionTimeline: z.infer<typeof CaptionTimeline>;
+};
+
+export const generateReel = async ({
+  template,
+  prompt,
+  brandName,
+}: {
+  template: ReelTemplate;
+  prompt: string;
+  brandName?: string;
+}) => {
+  return makeRequest<GenerateReelResponse>("/api/generate-reel", {
+    template,
+    prompt,
+    brandName,
+  });
 };
 
 export type LocalRenderResponse = {
